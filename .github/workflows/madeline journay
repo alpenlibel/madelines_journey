@@ -1,0 +1,225 @@
+      import pygame
+import random
+import time
+
+# Inisialisasi Pygame
+pygame.init()
+
+# Konstanta
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+GRAVITY = 0.5
+JUMP_STRENGTH = -10
+PLATFORM_WIDTH = 100
+PLATFORM_HEIGHT = 20
+
+# Warna
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+GREEN = (0, 255, 0)
+
+# Setup layar
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Madeline's Journey - Simulasi Kesehatan Mental")
+clock = pygame.time.Clock()
+
+# Font untuk teks
+font = pygame.font.SysFont(None, 36)
+
+# Kelas untuk Madeline
+class Madeline:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 60
+        self.vel_x = 0
+        self.vel_y = 0
+        self.on_ground = False
+        self.color = BLUE
+        self.self_doubt = 0  # Tingkat self-doubt (meningkat saat gagal)
+        self.panic_attack = False  # Flag untuk serangan panik
+
+    def update(self, platforms):
+        # Gerak horizontal
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.vel_x = -5
+        elif keys[pygame.K_RIGHT]:
+            self.vel_x = 5
+        else:
+            self.vel_x = 0
+
+        # Lompat
+        if keys[pygame.K_SPACE] and self.on_ground:
+            self.vel_y = JUMP_STRENGTH
+            self.on_ground = False
+
+        # Gravitasi
+        self.vel_y += GRAVITY
+        self.y += self.vel_y
+        self.x += self.vel_x
+
+        # Kolisi dengan platform
+        self.on_ground = False
+        for plat in platforms:
+            if (self.x < plat.x + plat.width and self.x + self.width > plat.x and
+                self.y < plat.y + plat.height and self.y + self.height > plat.y):
+                if self.vel_y > 0:  # Mendarat
+                    self.y = plat.y - self.height
+                    self.vel_y = 0
+                    self.on_ground = True
+                elif self.vel_y < 0:  # Menabrak dari bawah
+                    self.y = plat.y + plat.height
+                    self.vel_y = 0
+
+        # Batas layar
+        if self.x < 0:
+            self.x = 0
+        if self.x > SCREEN_WIDTH - self.width:
+            self.x = SCREEN_WIDTH - self.width
+        if self.y > SCREEN_HEIGHT:
+            return True  # "Mati" (jatuh)
+        return False
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+
+# Kelas untuk Platform
+class Platform:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = PLATFORM_WIDTH
+        self.height = PLATFORM_HEIGHT
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, (self.x, self.y, self.width, self.height))
+
+# Kelas untuk Badeline (sisi gelap)
+class Badeline:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 60
+        self.color = RED
+        self.accepted = False  # Apakah sudah diterima?
+
+    def update(self, madeline):
+        # Badeline mengikuti Madeline tapi tidak bisa dikalahkan dengan kekerasan
+        if not self.accepted:
+            self.x = madeline.x + 50  # Ikuti Madeline
+            self.y = madeline.y
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+
+# Mini-Game Bulu (Feather Technique)
+def feather_technique():
+    feather_y = SCREEN_HEIGHT // 2
+    breath_timer = 0
+    stable = False
+    while not stable:
+        screen.fill(WHITE)
+        text = font.render("Seimbangkan Bulu dengan Napas Teratur (Tekan SPACE untuk 'Napas')", True, BLACK)
+        screen.blit(text, (50, 50))
+        pygame.draw.circle(screen, BLACK, (SCREEN_WIDTH // 2, int(feather_y)), 10)  # Bulu
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return False
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                breath_timer += 1
+                if breath_timer % 2 == 0:
+                    feather_y -= 5  # Naik saat napas
+                else:
+                    feather_y += 5  # Turun
+
+        # Simulasi ketidakstabilan (self-doubt)
+        feather_y += random.randint(-2, 2)
+        if 200 < feather_y < 400:  # Stabil
+            stable = True
+            text_win = font.render("Bulu Seimbang! Teknik Coping Berhasil.", True, GREEN)
+            screen.blit(text_win, (200, 300))
+            pygame.display.flip()
+            time.sleep(2)
+        pygame.display.flip()
+        clock.tick(FPS)
+    return True
+
+# Fungsi utama game
+def main():
+    madeline = Madeline(100, 500)
+    platforms = [Platform(0, 550), Platform(200, 450), Platform(400, 350), Platform(600, 250)]
+    badeline = Badeline(150, 500)
+    deaths = 0  # Hitungan kematian (trial and error)
+    level_complete = False
+
+    running = True
+    while running:
+        screen.fill(WHITE)
+
+        # Update dan draw
+        dead = madeline.update(platforms)
+        if dead:
+            deaths += 1
+            madeline.self_doubt += 10  # Tingkatkan self-doubt
+            if madeline.self_doubt > 50:  # Trigger serangan panik
+                madeline.panic_attack = True
+                if feather_technique():  # Mini-game coping
+                    madeline.panic_attack = False
+                    madeline.self_doubt = 0
+                else:
+                    running = False
+            madeline.x, madeline.y = 100, 500  # Reset posisi
+
+        badeline.update(madeline)
+        madeline.draw(screen)
+        for plat in platforms:
+            plat.draw(screen)
+        badeline.draw(screen)
+
+        # Teks UI
+        death_text = font.render(f"Kematian: {deaths} (Data Perjuangan)", True, BLACK)
+        screen.blit(death_text, (10, 10))
+        doubt_text = font.render(f"Self-Doubt: {madeline.self_doubt}", True, RED)
+        screen.blit(doubt_text, (10, 50))
+
+        # Acceptance: Jika Madeline mendekati Badeline dan tekan E (embrace)
+        if abs(madeline.x - badeline.x) < 50 and abs(madeline.y - badeline.y) < 50:
+            accept_text = font.render("Tekan E untuk Menerima Badeline (Self-Compassion)", True, BLUE)
+            screen.blit(accept_text, (200, 200))
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_e]:
+                badeline.accepted = True
+                level_complete = True
+
+        if level_complete:
+            win_text = font.render("Level Selesai! Kamu Belajar Menerima Diri Sendiri.", True, GREEN)
+            screen.blit(win_text, (200, 300))
+            pygame.display.flip()
+            time.sleep(3)
+            running = False
+
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    # Fungsi Diagnostik: Log perilaku (untuk konselor)
+    with open("diagnostik_log.txt", "a") as log:
+        log.write(f"Sesi: Kematian={deaths}, Self-Doubt Maks={madeline.self_doubt}, Acceptance={badeline.accepted}\n")
+        log.write("Observasi: Jika kematian tinggi, siswa mungkin cepat menyerah. Jika acceptance cepat, siswa baik dalam self-compassion.\n")
+
+    pygame.quit()
+
+if __name__ == "__main__":
+    main()
